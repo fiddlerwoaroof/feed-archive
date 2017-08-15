@@ -1,11 +1,23 @@
 (page "index.html"
-  (:require [cure53.dom-purify :as dom-purify])
+  (:import goog.html.sanitizer.HtmlSanitizer
+           goog.html.sanitizer.HtmlSanitizer.Builder
+           goog.html.sanitizer.unsafe
+           goog.html.sanitizer.AttributeWhitelist
+           goog.string.Const
+           goog.functions
+           goog.html.SafeUrl
+           goog.html.SafeHtml)
   (:require-macros [feed-archive.let-promise :refer [let-promise]]))
 
 (defc state
-  {"base-url" "http://roachnotes.com"
+  {"base-url" nil
    "pull-time" ""
-   "feeds" []})
+   "feeds" []
+   :items {}})
+
+(defc= base-url
+  (get state "base-url")
+  #(swap! state assoc-in ["base-url"] %))
 
 (defc= pull-time
   (get state "pull-time"))
@@ -20,10 +32,8 @@
     (swap! state merge
            (js->clj data))))
 
-(defc= base-url
-  (get state "base-url"))
-
-(cell= (setup-state base-url))
+(cell= (when base-url
+         (setup-state base-url)))
 
 (defn make-feed-getter [out-cell]
   (fn [base-url path]
@@ -48,22 +58,38 @@
                   [data (.json resp)]]
       (reset! out-cell (js->clj data)))))
 
+(defn get-sanitizer []
+  (let [r (Builder.)
+        justification (.from Const "Because images are ok, silly")]
+    (.alsoAllowAttributes unsafe justification
+                          r #js [#js {:tagName "img" :attributeName "src" :policy nil}])
+    (.build r)))
+
+(defn sanitize-html [html]
+  (let [result (.sanitize (get-sanitizer) html)]
+    (.log js/console result)
+    (.unwrap SafeHtml result)))
+
 (defn get-item-cells [item]
-  (let [item-cell (cell {})
-        get-item (make-item-getter item-cell)]
+  (let* [key (get @item "path")
+         item-cell (cell= (get (:items state) key)
+                          #(swap! state assoc-in [:items key] %))
+         get-item (make-item-getter item-cell)]
     [get-item
      (cell= (get item "title"))
      (cell= (get item "path"))
      (cell= (get item-cell "link"))
-     (cell= (.sanitize js/DOMPurify
-                       (get item-cell "content")))]))
+     (cell= (sanitize-html (get item-cell "content")))]))
 
-(cell= (println pull-time))
+(cell= (.log js/console (clj->js base-url)))
+
 
 (html
  (head
   (link :href "app.css" :rel "stylesheet" :type "text/css"))
  (body
+  (input :type "text" :value base-url
+         :change #(reset! base-url (.-value (.-target %))))
   (loop-tpl :bindings [feed feeds]
     (let [[url title path feed-cell items item-count] (get-feed-entry-cells base-url feed)]
       (section

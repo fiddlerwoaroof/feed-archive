@@ -1,10 +1,10 @@
 (set-env!
- :dependencies '[[adzerk/boot-cljs          "1.7.228-2"]
-                 [adzerk/boot-reload        "0.4.13"]
+ :dependencies '[[adzerk/boot-cljs          "2.1.1"]
+                 [adzerk/boot-reload        "0.5.1"]
                  [tailrecursion/boot-jetty  "0.1.3"]
-                 [hoplon/hoplon             "6.0.0-alpha17"]
+                 [hoplon/hoplon             "7.0.2"]
                  [org.clojure/clojure       "1.8.0"]
-                 [org.clojure/clojurescript "1.9.293"]
+                 [org.clojure/clojurescript "1.9.854"]
                  [com.cemerick/piggieback "0.2.2"]
                  [adzerk/boot-cljs-repl   "0.3.3"]
                  [weasel                  "0.7.0" ]
@@ -22,7 +22,7 @@
 
 (require 'boot.repl)
 (swap! boot.repl/*default-dependencies*
-       concat '[;[cider/cider-nrepl "0.15.0"]
+       concat '[;[cider/cider-nrepl "0.15.1-SNAPSHOT"]
                 [refactor-nrepl "2.4.0-SNAPSHOT"]])
 
 (swap! boot.repl/*default-middleware*
@@ -42,6 +42,20 @@
                                  :externs ["externs.js"]})
         (serve :port 8006)))
 
+;; (deftask dev
+;;   "Build situation-editor for local development."
+;;   []
+;;   (comp (watch)
+;;         (speak)
+;;         (hoplon)
+;;         (reload)
+;;         (cljs-repl-env)
+;;         (cljs :source-map true :optimizations :none
+;;               :compiler-options {:foreign-libs [{:file "src/purify.min.js"
+;;                                                  :provides ["cure53.dom-purify"]}]
+;;                                  :externs ["externs.js"]})
+;;         (serve :port 8006)))
+
 (deftask prod
   "Build feed-archive for production deployment."
   []
@@ -52,3 +66,6 @@
                                             :provides ["cure53.dom-purify"]}]
                             :externs ["externs.js"]})
    (target :dir #{"target"})))
+
+(defn start-dev []
+  (def p (future (boot (dev)))))
