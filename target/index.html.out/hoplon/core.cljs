@@ -27,17 +27,17 @@
   the prerender task)?"
   (.getParameterValue (goog.Uri. (.. js/window -location -href)) "prerendering"))
 
-;; This is an internal implementation detail, exposed for the convenience of
-;; the hoplon.core/static macro.
-(def static-elements
-  "Experimental."
+(def ^:no-doc static-elements
+  "This is an internal implementation detail, exposed for the convenience of
+  the hoplon.core/static macro. Experimental."
   (-> #(assoc %1 (.getAttribute %2 "static-id") %2)
       (reduce {} (.querySelector js/document "[static-id]"))))
 
 ;;;; public helpers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn do-watch
-  "Adds f as a watcher to ref and evaluates (f init @ref) once. The watcher
+  "Public helper.
+  Adds f as a watcher to ref and evaluates (f init @ref) once. The watcher
   f is a function of two arguments: the previous and next values. If init is
   not provided the default (nil) will be used."
   ([ref f]
@@ -48,7 +48,8 @@
      (add-watch ref k (fn [_ _ old new] (f old new))))))
 
 (defn bust-cache
-  "Experimental."
+  "Public helper.
+  Experimental."
   [path]
   (let [[f & more] (reverse (split path #"/"))
         [f1 f2]    (split f #"\." 2)]
@@ -59,7 +60,8 @@
          (join "/"))))
 
 (defn normalize-class
-  "Class normalization for attribute providers."
+  "Public helper.
+  Class normalization for attribute providers."
   [kvs]
   (let [->map #(zipmap % (repeat true))]
     (if (map? kvs)
@@ -76,6 +78,20 @@
       (or (and (= i l) (persistent! ret))
           (recur (inc i) (conj! ret (.item x i)))))))
 
+(defn- vflatten
+ ([tree]
+   (persistent! (vflatten tree (transient []))))
+  ([tree ret]
+   (let [l (count tree)]
+     (loop [i 0]
+        (if (= i l)
+          ret
+          (let [x (nth tree i)]
+            (if-not (sequential? x)
+              (conj! ret x)
+              (vflatten x ret))
+            (recur (inc i))))))))
+
 ;;;; custom nodes ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defprotocol INode
@@ -91,7 +107,9 @@
   (node [this]
     ($text (str this))))
 
-(defn- ->node [x] (if (satisfies? INode x) (node x) x))
+(defn- ->node
+  [x]
+  (if (satisfies? INode x) (node x) x))
 
 ;;;; custom elements ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -103,7 +121,7 @@
 
 (defn- merge-kids
   [this _ new]
-  (let [new  (->> (flatten new) (remove nil?) (map ->node))
+  (let [new  (->> (vflatten new) (reduce #(if (nil? %2) %1 (conj %1 %2)) []) (mapv ->node))
         new? (set new)]
     (loop [[x & xs] new
            [k & ks :as kids] (child-vec this)]
@@ -130,18 +148,56 @@
   (set! (.-hoplonKids this) nil)
   (merge-kids this nil nil))
 
+(defn- native?
+  "Returns true if elem is a native element. Native elements' children
+  are not managed by Hoplon."
+  [elem]
+  (and (instance? js/Element elem)
+       (-> elem .-hoplonKids nil?)))
+
+(defn- managed?
+  "Returns true if elem is a managed element. Managed elements have
+  their children managed by Hoplon."
+  [elem]
+  (not (native? elem)))
+
+(defn- managed-append-child
+  "Appends `child` to `parent` for the case of `parent` being a
+  managed element."
+  [parent child kidfn]
+  (with-let [child child]
+    (ensure-kids! parent)
+    (let [kids (kidfn parent)
+          i    (count @kids)]
+      (if (cell? child)
+        (do-watch child #(swap! kids assoc i %2))
+        (swap! kids assoc i child)))))
+
 (defn- set-appendChild!
   [this kidfn]
   (set! (.-appendChild this)
-        (fn [x]
+        (fn [child]
           (this-as this
-            (with-let [x x]
-              (ensure-kids! this)
-              (let [kids (kidfn this)
-                    i    (count @kids)]
-                (if (cell? x)
-                  (do-watch x #(swap! kids assoc i %2))
-                  (swap! kids assoc i x))))))))
+            (when (.-parentNode child)
+              (.removeChild (.-parentNode child) child))
+            (cond
+              ;; Use the browser-native function for speed in the case
+              ;; where no children are cells.
+              (and (native? this) (not (cell? child)))
+              (.call appendChild this child)
+
+              (and (native? this) (cell? child))
+              (managed-append-child this child kidfn)
+
+              (managed? this)
+              (managed-append-child this child kidfn)
+
+              :else
+              (throw (ex-info "Unexpected child type" {:reason    ::unexpected-child-type
+                                                       :child     child
+                                                       :native?   (native? child)
+                                                       :managed? (managed? child)
+                                                       :this      this})))))))
 
 (defn- set-removeChild!
   [this kidfn]
@@ -264,20 +320,29 @@
     #(try (seq? %) (catch js/Error _))))
 
 (defn safe-nth
+  "Like cljs.core/nth but returns nil or not found if the index is outside the coll"
   ([coll index] (safe-nth coll index nil))
   ([coll index not-found]
    (try (nth coll index not-found) (catch js/Error _ not-found))))
 
 (defn timeout
+  "Executes a fuction after a delay, if no delay is passed, 0 is used as a default."
   ([f] (timeout f 0))
   ([f t] (.setTimeout js/window f t)))
 
-(defn when-dom [this f]
+(defn when-dom
+  [this f]
   (if-not (instance? js/Element this)
-    (f)
-    (timeout
-      (fn doit []
-        (if (.contains (.-documentElement js/document) this) (f) (timeout doit 20))))))
+    (with-timeout 0 (f))
+    (if-let [v (obj/get this "_hoplonWhenDom")]
+      (.push v f)
+      (do (obj/set this "_hoplonWhenDom" (array f))
+          (with-timeout 0
+            ((fn doit []
+               (if-not (.contains (.-documentElement js/document) this)
+                 (with-timeout 20 (doit))
+                 (do (doseq [f (obj/get this "_hoplonWhenDom")] (f))
+                     (obj/set this "_hoplonWhenDom" nil))))))))))
 
 ;; env ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -286,12 +351,12 @@
   (loop [attr (transient {})
          kids (transient [])
          [arg & args] args]
-    (if-not arg
+    (if-not (or arg args)
       [(persistent! attr) (persistent! kids)]
       (cond (map? arg)       (recur (reduce-kv #(assoc! %1 %2 %3) attr arg) kids args)
             (attribute? arg) (recur (assoc! attr arg (first args)) kids (rest args))
-            (seq?* arg)      (recur attr (reduce conj! kids (flatten arg)) args)
-            (vector?* arg)   (recur attr (reduce conj! kids (flatten arg)) args)
+            (seq?* arg)      (recur attr (reduce conj! kids (vflatten arg)) args)
+            (vector?* arg)   (recur attr (reduce conj! kids (vflatten arg)) args)
             :else            (recur attr (conj! kids arg) args)))))
 
 (defn- add-attributes!
@@ -301,7 +366,7 @@
 (defn- add-children!
   [this [child-cell & _ :as kids]]
   (with-let [this this]
-    (doseq [x (flatten kids)]
+    (doseq [x (vflatten kids)]
       (when-let [x (->node x)]
         (append-child! this x)))))
 
@@ -322,14 +387,14 @@
     ([this kvs]
      (let [e this]
        (doseq [[k v] kvs :let [k (name k)]]
-         (if (= false v)
+         (if-not v
            (.removeAttribute e k)
            (.setAttribute e k (if (= true v) k v)))))))
   (-set-styles!
     ([this kvs]
      (let [e this]
        (doseq [[k v] kvs]
-         (obj/set e "style" (name k) (str v))))))
+         (obj/set (.. e -style) (name k) (str v))))))
   (-append-child!
     ([this child]
      (if-not is-ie8
@@ -356,7 +421,7 @@
 
 (defn- make-elem-ctor
   [tag]
-  (let [mkelem #(-> js/document (.createElement tag) ensure-kids! (apply %&))]
+  (let [mkelem #(-> js/document (.createElement tag) (apply %&))]
     (if-not is-ie8
       mkelem
       (fn [& args]
@@ -364,11 +429,18 @@
           (catch js/Error _ (apply (make-elem-ctor "div") args)))))))
 
 (defn html [& args]
+  "Updates the document's `html` element in place."
   (-> (.-documentElement js/document)
       (add-attributes! (nth (parse-args args) 0))))
 
-(def body           (make-singleton-ctor (.-body js/document)))
-(def head           (make-singleton-ctor (-head* js/document)))
+(def head
+  "Updates the document's `head` element in place."
+  (make-singleton-ctor (-head* js/document)))
+
+(def body
+  "Updates the document's `body` element in place."
+  (make-singleton-ctor (.-body js/document)))
+
 (def a              (make-elem-ctor "a"))
 (def abbr           (make-elem-ctor "abbr"))
 (def address        (make-elem-ctor "address"))
