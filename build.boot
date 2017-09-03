@@ -1,10 +1,9 @@
 (set-env!
  :dependencies '[[adzerk/boot-cljs          "2.1.1"]
-                 [adzerk/boot-reload        "0.5.1"]
+                 [adzerk/boot-reload        "0.5.2-SNAPSHOT"]
                  [tailrecursion/boot-jetty  "0.1.3"]
-                 [hoplon/hoplon             "7.0.2"]
-                 [org.clojure/clojure       "1.8.0"]
-                 [org.clojure/clojurescript "1.9.854"]
+                 [hoplon/hoplon             "7.1.0-SNAPSHOT"]
+                 [org.clojure/clojure       "1.9.0-alpha19"]
                  [com.cemerick/piggieback "0.2.2"]
                  [adzerk/boot-cljs-repl   "0.3.3"]
                  [weasel                  "0.7.0" ]

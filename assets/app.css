@@ -1,3 +1,7 @@
+* {
+    box-sizing: border-box;
+}
+
 body {
     margin: 0;
     padding: 20px;
@@ -6,3 +10,162 @@ body {
 h1 {
     color: blue;
 }
+
+h3 {
+    display: inline-block;
+}
+
+main {
+    display: block;
+    position: relative;
+}
+
+div.article-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: silver;
+    z-index: 1000;
+    transition: top 0.1s linear, min-height 0.1s linear;
+    top: 100%;
+    overflow: hidden;
+}
+
+div.article-overlay.displayed {
+    top: 0%;
+    overflow-y: scroll;
+}
+
+.article-overlay article {
+    transition: min-height 0.1s linear;
+    height: 100%;
+    min-height: 100%;
+    width: 50%;
+    position:relative;
+    left: 12.5%;
+    display: block;
+}
+
+.show-article {
+    position: absolute;
+    right: 0.25em;
+    bottom: 0.25em;
+}
+
+section {
+    width: 100%;
+    vertical-align: top;
+    border: 0.5em solid white;
+    position: relative;
+    overflow: hidden;
+}
+
+section.displayed {
+    min-height: 40em;
+}
+
+.beta {
+    height: 1.5em;
+    width: 1.5em;
+    border-radius: 50%;
+    border thin solid black;
+    text-align: center;
+    line-height: 1.5em;
+    margin: 0 0.25em;
+    font-size: 25%;
+    position: relative;
+    margin-bottom: 2em;
+    display: inline-block;
+}
+
+section > div {
+    background: rgba(0,0,0,0.2);
+    padding: 1em;
+
+    display: flex;
+
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+section > div > header {
+    width: 100%;
+    display: block;
+    border-bottom: thin solid black;
+    margin-bottom: 1em;
+}
+
+article.summary {
+    background: linear-gradient(rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.2));
+    padding: 0.25em 0.5em;
+    margin: 0.1em;
+    display: block;
+
+    position: relative;
+    transition: color 0.1s ease;
+    overflow: hidden;
+    border: thin solid rgba(0,0,0,0.2);
+}
+
+article.summary:hover {
+    border: thin solid rgba(255,255,255,0.2);
+}
+
+
+article.summary > div {
+    font-size: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: -10;
+}
+
+article.summary > div img {
+    min-width: 100%;
+    min-height: 100%;
+    opacity: 0.75;
+}
+
+article.summary h3 {
+    color: rgba(192,192,192,1);
+    text-shadow: 0 0 0.2em black;
+    z-index: 10;
+}
+
+article.summary h3 a {
+    color: inherit;
+}
+
+/*
+article > div.content {
+    position: relative;
+    background: rgba(0,0,0,0.2);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    transition: font-size 0.1s ease, color 0.1s linear, opacity 0.1s linear, max-height 0.1s ease 0.05s;
+}
+
+div.content.hidden {
+    font-size: 0em;
+    color: transparent;
+    transition-delay: 0.1s, 0s, 0s;
+    max-height: 0;
+    opacity: 0;
+}
+
+div.content.displayed {
+    font-size: 1em;
+    color: inherit;
+    transition-delay: 0s, 0.1s, 0.1s;
+    max-height: 600em;
+    opacity: 1;
+}
+
+article > div.content a {
+    color: inherit;
+}
+*/

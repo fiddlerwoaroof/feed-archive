@@ -650,7 +650,7 @@ goog.addDependency = function(relPath, provides, requires, opt_loadFlags) {
 // Externally: https://developers.google.com/closure/library/docs/depswriter
 //
 // Because of legacy clients, the DOM loader can't be easily removed from
-// base.js.  Work is being done to make it disableable or replaceable for
+// base.js.  Work was done to make it disableable or replaceable for
 // different environments (DOM-less JavaScript interpreters like Rhino or V8,
 // for example). See bootstrap/ for more information.
 
@@ -690,7 +690,7 @@ goog.logToConsole_ = function(msg) {
  *     module otherwise null.
  */
 goog.require = function(name) {
-  // If the object already exists we do not need do do anything.
+  // If the object already exists we do not need to do anything.
   if (!COMPILED) {
     if (goog.ENABLE_DEBUG_LOADER && goog.IS_OLD_IE_) {
       goog.maybeProcessDeferredDep_(name);
@@ -1304,7 +1304,7 @@ if (goog.DEPENDENCIES_ENABLED) {
 
   /**
    * A readystatechange handler for legacy IE
-   * @param {!HTMLScriptElement} script
+   * @param {?} script
    * @param {number} scriptIndex
    * @return {boolean}
    * @private
